@@ -1,0 +1,108 @@
+#!/bin/bash
+
+# 检查是否提供了参数
+if [ "$#" -ne 2 ]; then
+    echo "Usage: $0 <file-name> \"<question>\""
+    exit 1
+fi
+
+FILE="$1"
+QUESTION="$2"
+EXT="${FILE##*.}"
+BASE_NAME="${FILE%.*}"
+ANSWER_FILE="${BASE_NAME}.answer"
+
+# 确保必要的工具已安装
+if ! command -v llm &> /dev/null; then
+    echo "llm could not be found. Please install it and try again."
+    exit 1
+fi
+
+# 获取当前时间戳
+TIMESTAMP=$(date +"%Y-%m-%d:%H:%M")
+
+# 处理文件根据文件扩展名
+case "$EXT" in
+    ppt|pptx)
+        # 处理 PPT/PPTX 文件
+        MD_FILE="${BASE_NAME}.md"
+        
+        if [ ! -f "$MD_FILE" ]; then
+            echo "Markdown file not found. Converting PPT/PPTX file to Markdown..."
+            pptx2md "$FILE" -o "$MD_FILE"
+            
+            if [ $? -ne 0 ]; then
+                echo "Failed to convert PPT/PPTX to Markdown."
+                exit 1
+            fi
+            
+            echo "Markdown file created: $MD_FILE"
+        else
+            echo "Markdown file already exists: $MD_FILE"
+        fi
+        
+        # 使用 LLM 命令进行问答
+        echo "Asking question to LLM..."
+        cat "$MD_FILE" | llm -s "Question: $QUESTION" > "$ANSWER_FILE"
+        ;;
+        
+    pdf)
+        # 处理 PDF 文件
+        TXT_FILE="${BASE_NAME}.txt"
+        
+        if [ ! -f "$TXT_FILE" ]; then
+            echo "Text file not found. Converting PDF file to Text..."
+            pdftotext "$FILE" "$TXT_FILE"
+            
+            if [ $? -ne 0 ]; then
+                echo "Failed to convert PDF to Text."
+                exit 1
+            fi
+            
+            echo "Text file created: $TXT_FILE"
+        else
+            echo "Text file already exists: $TXT_FILE"
+        fi
+        
+        # 使用 LLM 命令进行问答
+        echo "Asking question to LLM..."
+        cat "$TXT_FILE" | llm -s "Question: $QUESTION" > "$ANSWER_FILE"
+        ;;
+        
+    *)
+        # 处理其他类型的文件
+        echo "Processing other file types..."
+        
+        # 使用 LLM 命令进行问答
+        echo "Asking question to LLM..."
+        cat "$FILE" | llm -s "Question: $QUESTION" > "$ANSWER_FILE"
+        ;;
+esac
+
+# 处理答案文件，附加新内容
+if [ -f "$ANSWER_FILE" ]; then
+    # 读取答案内容
+    ANSWER_CONTENT=$(cat "$ANSWER_FILE")
+else
+    # 如果答案文件不存在，初始化为空
+    ANSWER_CONTENT=""
+fi
+
+# 创建新的答案内容
+NEW_ANSWER_CONTENT=$(cat <<EOF
+## $QUESTION
+@$TIMESTAMP
+---
+$(cat "$ANSWER_FILE")
+
+---
+EOF
+)
+
+# 写入新内容到答案文件
+echo "$NEW_ANSWER_CONTENT" > "$ANSWER_FILE"
+
+echo "Answer saved to $ANSWER_FILE"
+
+# 显示答案文件内容
+glow -p "$ANSWER_FILE"
