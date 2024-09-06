@@ -51,6 +51,13 @@ handle_file() {
     local MD_FILE="${BASE_NAME}.md"
 
     case "$EXT" in
+        md)
+            # Markdown file, use it directly
+            ;;
+        txt)
+            # Text file, copy content to markdown file
+            cp "$FILE" "$MD_FILE"
+            ;;    
         ppt|pptx|PPT|PPTX)
             [ ! -f "$MD_FILE" ] && pptx2md "$FILE" -o "$MD_FILE" || echo "Markdown file already exists: $MD_FILE"
             ;;
@@ -58,7 +65,9 @@ handle_file() {
             [ ! -f "$MD_FILE" ] && pdftotext "$FILE" "$MD_FILE" || echo "Text file already exists: $MD_FILE"
             ;;
         *)
-            cp "$FILE" "$MD_FILE"
+            # Unsupported file format, exit script
+            # echo "Unsupported file format: $EXT. Exiting script."
+            MD_FILE="" # set to blank
             ;;
     esac
     echo "$MD_FILE"
@@ -68,7 +77,7 @@ handle_file() {
 generate_summary() {
     local FILE_CONTENT="$1"
     echo "内容摘要："
-    llm -s "生成3点内容摘要，" "$FILE_CONTENT"
+    llm -s "生成3点内容摘要，" "内容：$FILE_CONTENT"
     echo "-----------------------------"
 }
 
@@ -86,6 +95,13 @@ start_chat() {
         llm chat -s "I will ask you questions with context: $FILE_CONTENT. Please answer based on the context."
     fi
 }
+
+# Start of the main program
+
+if [ ! -f "$1" ]; then
+    echo "File not exist, Exiting ..."
+    exit 1
+fi
 
 # 依赖检查
 check_llm_installed
@@ -116,6 +132,12 @@ elif [[ "$INPUT" == http* ]]; then
     MD_FILE=$(handle_url "$INPUT")
 else
     MD_FILE=$(handle_file "$INPUT")
+fi
+
+# 检查 MD_FILE 是否为空
+if [ -z "$MD_FILE" ]; then
+    echo "Unsupported file format. Exiting ..."
+    exit 1
 fi
 
 # 开始与文件或内容的对话
