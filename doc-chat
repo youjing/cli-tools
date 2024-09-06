@@ -2,93 +2,143 @@
 
 # 函数：显示用法
 usage() {
-    echo "Usage: $0 [-m model-name] <file-to-chat-with>"
+    echo "Usage: $0 [-m model-name] <file-to-chat-with> | clipboard | <url>"
     exit 1
 }
 
+# 确保llm已安装
+if ! command -v llm &> /dev/null; then
+    echo "llm could not be found. Please install it and try again."
+    exit 1
+fi
+
 # 处理命令行选项
-while getopts "m:" opt; do
+OLLAMA_MODE=false
+while getopts "m:l" opt; do
     case ${opt} in
         m )
             MODEL_NAME=$OPTARG
+            ;;
+        l )
+            OLLAMA_MODE=true
             ;;
         \? )
             usage
             ;;
     esac
 done
+
 shift $((OPTIND -1))
 
-# 检查是否提供了文件参数
+# 检查是否提供了输入参数
 if [ "$#" -ne 1 ]; then
     usage
 fi
 
-FILE="$1"
-BASE_NAME="${FILE%.*}"
-EXT="${FILE##*.}"
-MD_FILE="${BASE_NAME}.md"
+INPUT="$1"
+BASE_NAME=""
+MD_FILE=""
 
-# 确保必要的工具已安装
-if ! command -v llm &> /dev/null; then
-    echo "llm could not be found. Please install it and try again."
-    exit 1
+# 处理剪贴板输入
+if [ "$INPUT" = "clipboard" ]; then
+    if command -v pbpaste &> /dev/null; then
+        # MacOS
+        FILE="/tmp/clipboard_content.txt"
+        pbpaste > "$FILE"
+    elif command -v xclip &> /dev/null; then
+        # Linux
+        FILE="/tmp/clipboard_content.txt"
+        xclip -o > "$FILE"
+    else
+        echo "Clipboard tool not found. Please install pbpaste or xclip."
+        exit 1
+    fi
+    BASE_NAME="${FILE%.*}"
+    MD_FILE="${FILE}"
+    
+# 处理URL输入
+elif [[ "$INPUT" == http* ]]; then
+    FILE_CONTENT=$(curl -s "https://r.jina.ai/$INPUT")
+    if [ -z "$FILE_CONTENT" ]; then
+        echo "Failed to retrieve content from URL."
+        exit 1
+    fi
+    MD_FILE="/tmp/url_content.md"
+    echo "$FILE_CONTENT" > "$MD_FILE"
+    
+# 处理文件输入
+else
+    FILE="$INPUT"
+    BASE_NAME="${FILE%.*}"
+    EXT="${FILE##*.}"
+    MD_FILE="${BASE_NAME}.md"
+
+    # 根据文件扩展名进行处理
+    case "$EXT" in
+        ppt|pptx|PPT|PPTX)
+            # 处理 PPT/PPTX 文件
+            if [ ! -f "$MD_FILE" ]; then
+                echo "Markdown file not found. Converting PPT/PPTX file to Markdown..."
+                pptx2md "$FILE" -o "$MD_FILE"
+                
+                if [ $? -ne 0 ]; then
+                    echo "Failed to convert PPT/PPTX to Markdown."
+                    exit 1
+                fi
+                
+                echo "Markdown file created: $MD_FILE"
+            else
+                echo "Markdown file already exists: $MD_FILE"
+            fi
+            ;;
+        
+        pdf)
+            # 处理 PDF 文件
+            if [ ! -f "$MD_FILE" ]; then
+                echo "Text file not found. Converting PDF file to Text..."
+                pdftotext "$FILE" "$MD_FILE"
+                
+                if [ $? -ne 0 ]; then
+                    echo "Failed to convert PDF to Text."
+                    exit 1
+                fi
+                
+                echo "Text file created: $MD_FILE"
+            else
+                echo "Text file already exists: $MD_FILE"
+            fi
+            ;;
+        
+        *)
+            # 处理其他类型的文件
+            echo "Processing other file types..."
+            cp "$FILE" "$MD_FILE"
+            ;;
+    esac
 fi
 
-# 处理文件根据文件扩展名
-case "$EXT" in
-    ppt|pptx)
-        # 处理 PPT/PPTX 文件
-        if [ ! -f "$MD_FILE" ]; then
-            echo "Markdown file not found. Converting PPT/PPTX file to Markdown..."
-            pptx2md "$FILE" -o "$MD_FILE"
-            
-            if [ $? -ne 0 ]; then
-                echo "Failed to convert PPT/PPTX to Markdown."
-                exit 1
-            fi
-            
-            echo "Markdown file created: $MD_FILE"
-        else
-            echo "Markdown file already exists: $MD_FILE"
-        fi
-        ;;
-        
-    pdf)
-        # 处理 PDF 文件
-        if [ ! -f "$MD_FILE" ]; then
-            echo "Text file not found. Converting PDF file to Text..."
-            pdftotext "$FILE" "$MD_FILE"
-            
-            if [ $? -ne 0 ]; then
-                echo "Failed to convert PDF to Text."
-                exit 1
-            fi
-            
-            echo "Text file created: $MD_FILE"
-        else
-            echo "Text file already exists: $MD_FILE"
-        fi
-        ;;
-        
-    *)
-        # 处理其他类型的文件
-        echo "Processing other file types..."
-        
-        # 将文件复制为基本名称的文本文件
-        cp "$FILE" "$MD_FILE"
-        ;;
-esac
-
-
-# 开始与文件的对话
+# 开始与文件或内容的对话
 FILE_CONTENT=$(cat "$MD_FILE")
 
-if [ -n "$MODEL_NAME" ]; then  #带有模型名称
-    llm chat -m $MODEL_NAME -s "I will ask you questions with context $FILE_CONTENT and you should answer based on the context faithfully."
-else
-    llm chat -s "I will ask you questions with context $FILE_CONTENT and you should answer based on the context faithfully."
-fi
+echo "Starting chat with it..."
 
+# 生成和输出 3 句话摘要
+
+echo "内容摘要："
+
+# 调用llm 命令生成摘要
+llm -s "生成3点内容摘要，" "$FILE_CONTENT"
+
+echo "-----------------------------"
+echo "Starting chat with it..."
+
+
+if [ -n "$MODEL_NAME" ]; then  # 带有模型名称
+    llm chat -m $MODEL_NAME -s "I will ask you questions with context: $FILE_CONTENT. Please answer based on the context."
+elif [ "$OLLAMA_MODE" = true ]; then
+    llm chat -m gemma2:2b-instruct-fp16 -s "I will ask you questions with context: $FILE_CONTENT. Please answer based on the context."
+else
+    llm chat -s "I will ask you questions with context: $FILE_CONTENT. Please answer based on the context."
+fi
 
 echo "Happy chatting with you! Bye for now ..."
