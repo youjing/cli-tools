@@ -11,6 +11,7 @@ QUESTION="$2"
 EXT="${FILE##*.}"
 BASE_NAME="${FILE%.*}"
 ANSWER_FILE="${BASE_NAME}.answer"
+TEMP_ANSWER_FILE="${BASE_NAME}_temp.answer"
 
 # 确保必要的工具已安装
 if ! command -v llm &> /dev/null; then
@@ -41,16 +42,16 @@ case "$EXT" in
             echo "Markdown file already exists: $MD_FILE"
         fi
         
-        # 使用 LLM 命令进行问答
+        # 使用 LLM 命令进行问答，输出到临时文件
         echo "Asking question to LLM..."
-        cat "$MD_FILE" | llm -s "Question: $QUESTION" > "$ANSWER_FILE"
+        cat "$MD_FILE" | llm -s "Question: $QUESTION" > "$TEMP_ANSWER_FILE"
         ;;
         
     pdf)
         # 处理 PDF 文件
         TXT_FILE="${BASE_NAME}.txt"
         
-        if [ ! -f "$TXT_FILE" ]; then
+        if [ ! -f "$TXT_FILE" ];then
             echo "Text file not found. Converting PDF file to Text..."
             pdftotext "$FILE" "$TXT_FILE"
             
@@ -64,28 +65,25 @@ case "$EXT" in
             echo "Text file already exists: $TXT_FILE"
         fi
         
-        # 使用 LLM 命令进行问答
+        # 使用 LLM 命令进行问答，输出到临时文件
         echo "Asking question to LLM..."
-        cat "$TXT_FILE" | llm -s "Question: $QUESTION" > "$ANSWER_FILE"
+        cat "$TXT_FILE" | llm -s "请用中文回答问题: $QUESTION" > "$TEMP_ANSWER_FILE"
         ;;
         
     *)
         # 处理其他类型的文件
         echo "Processing other file types..."
         
-        # 使用 LLM 命令进行问答
+        # 使用 LLM 命令进行问答，输出到临时文件
         echo "Asking question to LLM..."
-        cat "$FILE" | llm -s "Question: $QUESTION" > "$ANSWER_FILE"
+        cat "$FILE" | llm -s "Question: $QUESTION" > "$TEMP_ANSWER_FILE"
         ;;
 esac
 
-# 处理答案文件，附加新内容
-if [ -f "$ANSWER_FILE" ]; then
-    # 读取答案内容
-    ANSWER_CONTENT=$(cat "$ANSWER_FILE")
-else
-    # 如果答案文件不存在，初始化为空
-    ANSWER_CONTENT=""
+# 检查临时答案文件是否生成成功
+if [ ! -f "$TEMP_ANSWER_FILE" ]; then
+    echo "Error: No answer was generated."
+    exit 1
 fi
 
 # 创建新的答案内容
@@ -93,16 +91,20 @@ NEW_ANSWER_CONTENT=$(cat <<EOF
 ## $QUESTION
 @$TIMESTAMP
 ---
-$(cat "$ANSWER_FILE")
+$(cat "$TEMP_ANSWER_FILE")
 
 ---
 EOF
 )
 
-# 写入新内容到答案文件
-echo "$NEW_ANSWER_CONTENT" > "$ANSWER_FILE"
+# 将新的答案内容追加到答案文件
+echo "$NEW_ANSWER_CONTENT" >> "$ANSWER_FILE"
 
-echo "Answer saved to $ANSWER_FILE"
 
 # 显示答案文件内容
-glow -p "$ANSWER_FILE"
+glow -p "$TEMP_ANSWER_FILE"
+
+# 清理临时文件
+rm "$TEMP_ANSWER_FILE"
+
+echo "Answer saved to $ANSWER_FILE"
