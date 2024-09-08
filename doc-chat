@@ -53,16 +53,25 @@ handle_file() {
     case "$EXT" in
         md)
             # Markdown file, use it directly
+            # MD_FILE = "$1"
             ;;
         txt)
             # Text file, copy content to markdown file
             cp "$FILE" "$MD_FILE"
             ;;    
         ppt|pptx|PPT|PPTX)
-            [ ! -f "$MD_FILE" ] && pptx2md "$FILE" -o "$MD_FILE" || echo "Markdown file already exists: $MD_FILE"
+            # echo "Converting to MD: $MD_FILE"
+            if [ ! -f "$MD_FILE" ]; then
+                pptx2md "$FILE" -o "$MD_FILE"
+            fi
+                # echo "Markdown file already exists: $MD_FILE"
+            
             ;;
         pdf)
-            [ ! -f "$MD_FILE" ] && pdftotext "$FILE" "$MD_FILE" || echo "Text file already exists: $MD_FILE"
+            if [ ! -f "$MD_FILE" ]; then 
+                pdftotext "$FILE" "$MD_FILE" 
+            fi 
+            # echo "Text file already exists: $MD_FILE"
             ;;
         *)
             # Unsupported file format, exit script
@@ -98,8 +107,8 @@ start_chat() {
 
 # Start of the main program
 
-if [ ! -f "$1" ]; then
-    echo "File not exist, Exiting ..."
+if [ "$1" != "clipboard" ] && [ ! -f "$1" ]; then
+    usage
     exit 1
 fi
 
