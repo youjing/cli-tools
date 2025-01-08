@@ -17,8 +17,8 @@ Some cli tools to make my(your?) life easier
 ### MacOS
 
 ```bash
-brew install llm pdftotext glow
-pip install pptx2md
+brew install glow
+pip install llm pptx2md pdftotext
 ```
 
 ### Linux (Ubuntu/Debian)
