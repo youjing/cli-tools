@@ -17,7 +17,7 @@ Some cli tools to make my(your?) life easier
 ### MacOS
 
 ```bash
-brew install glow
+brew install glow pkg-config poppler python
 pip install llm pptx2md pdftotext
 ```
 
