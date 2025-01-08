@@ -49,18 +49,18 @@ sudo apt-get install xclip
 
 ```bash
 # 基本用法
-./doc-chat.sh document.md # 与 Markdown 文件对话
-./doc-chat.sh document.pdf # 与 PDF 文件对话
-./doc-chat.sh presentation.pptx # 与 PPT 文件对话
-./doc-chat.sh clipboard # 与剪贴板内容对话
-./doc-chat.sh https://example.com # 与网页内容对话
+./doc-chat document.md # 与 Markdown 文件对话
+./doc-chat document.pdf # 与 PDF 文件对话
+./doc-chat presentation.pptx # 与 PPT 文件对话
+./doc-chat clipboard # 与剪贴板内容对话
+./doc-chat https://example.com # 与网页内容对话
 
 # 使用特定模型
-./doc-chat.sh -m gpt-4 document.md
-./doc-chat.sh -m claude-3-opus document.pdf
+./doc-chat -m gpt-4 document.md
+./doc-chat -m claude-3-opus document.pdf
 
 # 使用本地模型
-./doc-chat.sh -l document.md
+./doc-chat -l document.md
 ```
 
 ### doc-qa
@@ -71,11 +71,11 @@ sudo apt-get install xclip
 
 ```bash
 # 基本用法
-./doc-qa.sh document.pdf "这篇文档的主要内容是什么？"
-./doc-qa.sh presentation.pptx "总结一下这个演示文稿"
+./doc-qa document.pdf "这篇文档的主要内容是什么？"
+./doc-qa presentation.pptx "总结一下这个演示文稿"
 
 # 使用特定模型
-./doc-qa.sh -m qwen2:latest document.md "文档的关键点是什么？"
+./doc-qa -m qwen2:latest document.md "文档的关键点是什么？"
 ```
 
 ## 注意事项
